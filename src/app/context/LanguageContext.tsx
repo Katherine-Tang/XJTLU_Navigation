@@ -54,7 +54,7 @@ const zh: Texts = {
   home_classroom_nav: "教室导航",
   home_more_rooms: "输入关键词搜索更多教室…",
   // Map
-  map_title: "校园地图", map_subtitle: "探索西浦 · 便民导航",
+  //map_title: "校园地图", map_subtitle: "探索西浦 · 便民导航",
   map_tap_stamp: "碰一下集章",
   map_tap_stamp_desc: "拍摄校园楼宇，随机解锁徽章",
   map_tap_stamp_btn: "碰一下 · 开始集章",
@@ -364,7 +364,7 @@ const en: Texts = {
   home_floor: "F{n}", home_stops: "stops",
   home_classroom_nav: "Classroom Nav",
   home_more_rooms: "Type to search more rooms…",
-  map_title: "Campus Map", map_subtitle: "Explore XJTLU · Campus Navigation",
+  //map_title: "Campus Map", map_subtitle: "Explore XJTLU · Campus Navigation",
   map_tap_stamp: "Tap to Collect",
   map_tap_stamp_desc: "Snap campus buildings to unlock badges",
   map_tap_stamp_btn: "Tap · Start Collecting",
