@@ -1,17 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
-import * as L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import { PhoneShell, StatusBar, ComicCard, Burst } from "./PhoneShell";
-import { IconNavigation, IconChevronRight as IconArrow, IconRoute, IconBadge, IconCheck } from "./ComicIcons";
+import { PhoneShell, StatusBar, ComicCard } from "./PhoneShell";
+import { loadAmap } from "../services/amap";
+import { IconNavigation, IconChevronRight as IconArrow, IconRoute } from "./ComicIcons";
 import { useLanguage } from "../context/LanguageContext";
 import { useCamera } from "../context/CameraContext";
 import { campusMapHotspots, type CampusMapHotspotId } from "../data/campusMapHotspots";
 import { campusWalkAdjacency, shortestCampusWalkPath } from "../data/campusWalkGraph";
-import { BADGE_DEFS } from "../data/stamps";
 import { ImageZoomLightbox } from "./ImageZoomLightbox";
 
 const MASCOT_VOICE_STORAGE_KEY = "unibuddy.mascot.voiceUri";
@@ -21,12 +16,6 @@ const C = {
   ice: "#DCF0FF", cream: "#FFFBF0", yellow: "#FFD93D", coral: "#FF6B6B",
   mint: "#5EEAA8", purple: "#7B5CF5", white: "#FFFFFF",
 };
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
 
 type GuidedTourPoint = { id: string; label: string; x?: number; y?: number };
 
@@ -470,7 +459,7 @@ export function PicturesAndMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { lang, toggle, t } = useLanguage();
-  const { openCamera, badgeCheckedCount, unlockedBadgeIds } = useCamera();
+  const { openBadgeCollection } = useCamera();
   const [mapTab, setMapTab] = useState<MapTabKey>("map");
   const [activeHotspotId, setActiveHotspotId] = useState("cb");
   const [locationStatus, setLocationStatus] = useState("");
@@ -482,10 +471,11 @@ export function PicturesAndMapScreen() {
   });
 
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
-  const leafletHostRef = useRef<HTMLDivElement | null>(null);
-  const leafletMapRef = useRef<L.Map | null>(null);
-  const userMarkerRef = useRef<L.CircleMarker | null>(null);
-  const accuracyCircleRef = useRef<L.Circle | null>(null);
+  const amapHostRef = useRef<HTMLDivElement | null>(null);
+  const amapMapRef = useRef<AMap.Map | null>(null);
+  const userMarkerRef = useRef<AMap.CircleMarker | null>(null);
+  const accuracyCircleRef = useRef<AMap.Circle | null>(null);
+  const geolocationRef = useRef<AMap.Geolocation | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const firstFixRef = useRef(false);
   const mapSectionRef = useRef<HTMLDivElement>(null);
@@ -528,7 +518,7 @@ export function PicturesAndMapScreen() {
           guidedSteps: "站点顺序",
           guidedHint: "已按所选路线在地图上连线展示",
           guidedNotice: "导览路线已生成，请通过校园地图查看。",
-          liveTip: "地图数据来自 OpenStreetMap，定位需浏览器授权且建议在 HTTPS 环境使用。",
+          liveTip: "地图数据来自高德地图，定位需浏览器授权且建议在 HTTPS 环境使用。",
         }
       : {
           clickHint: "Tap a map pin to view details",
@@ -559,24 +549,20 @@ export function PicturesAndMapScreen() {
           guidedSteps: "Stops",
           guidedHint: "Selected stops are connected on the map",
           guidedNotice: "The guided route is ready. Please view it on the campus map.",
-          liveTip: "Map data is provided by OpenStreetMap. Browser permission and HTTPS are recommended.",
+          liveTip: "Map data is provided by Amap (Gaode). Browser permission and HTTPS are recommended.",
         };
 
   useEffect(() => {
-    const scrollToStamps = () => {
-      stampSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const openStamps = () => {
+      openBadgeCollection();
     };
-    window.addEventListener("unibuddy-scroll-stamps", scrollToStamps);
-    return () => window.removeEventListener("unibuddy-scroll-stamps", scrollToStamps);
-  }, []);
+    window.addEventListener("unibuddy-scroll-stamps", openStamps);
+    return () => window.removeEventListener("unibuddy-scroll-stamps", openStamps);
+  }, [openBadgeCollection]);
 
   const activeLocation =
     (lang === "zh" ? campusLocationInfoZh : campusLocationInfo)[activeHotspotId] ??
     campusLocationInfo[activeHotspotId];
-  const badges = BADGE_DEFS.map((badge) => ({
-    ...badge,
-    checked: unlockedBadgeIds.includes(badge.id),
-  }));
   const guidedPoints = guidedTour ? normalizeGuidedTourPoints(guidedTour.points) : [];
   const guidedWalkAdj = campusWalkAdjacency();
   const guidedPolyline = (() => {
@@ -684,136 +670,156 @@ export function PicturesAndMapScreen() {
     };
   }, []);
 
-  const XJTLU_CENTER: [number, number] = [31.2718, 120.7415];
+  const XJTLU_CENTER: [number, number] = [120.7415, 31.2718];
   const LIVE_MAP_DEFAULT_ZOOM = 15;
   const LIVE_MAP_MAX_ZOOM = 18;
+  const LOCATION_POLL_MS = 3000;
 
   useEffect(() => {
     setLocationStatus(mapCopy.startLocating);
   }, [mapCopy.startLocating]);
 
-  const ensureLeafletMap = () => {
-    if (leafletMapRef.current) return leafletMapRef.current;
-    if (!leafletHostRef.current) return null;
+  const ensureAmapMap = async () => {
+    if (amapMapRef.current) return amapMapRef.current;
+    if (!amapHostRef.current) return null;
 
-    const map = L.map(leafletHostRef.current, {
-      scrollWheelZoom: false,
-      zoomControl: true,
-      minZoom: 13,
-      maxZoom: LIVE_MAP_MAX_ZOOM,
-    }).setView(XJTLU_CENTER, LIVE_MAP_DEFAULT_ZOOM);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: LIVE_MAP_MAX_ZOOM,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
+    const AMap = await loadAmap();
+    const map = new AMap.Map(amapHostRef.current, {
+      zoom: LIVE_MAP_DEFAULT_ZOOM,
+      center: XJTLU_CENTER,
+      viewMode: "2D",
+      zooms: [13, LIVE_MAP_MAX_ZOOM],
+      scrollWheel: false,
+    });
 
-    L.marker(XJTLU_CENTER).addTo(map).bindPopup("XJTLU");
-    leafletMapRef.current = map;
+    new AMap.Marker({ position: XJTLU_CENTER, title: "XJTLU" }).setMap(map);
+    amapMapRef.current = map;
     return map;
   };
 
   const stopTracking = (message = mapCopy.stopLocating) => {
-    if (watchIdRef.current != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+    if (watchIdRef.current != null) {
+      window.clearInterval(watchIdRef.current);
       watchIdRef.current = null;
     }
+    geolocationRef.current = null;
     firstFixRef.current = false;
     setLocationStatus(message);
   };
 
-  const destroyLeafletMap = () => {
-    if (leafletMapRef.current) {
-      leafletMapRef.current.remove();
-      leafletMapRef.current = null;
+  const destroyAmapMap = () => {
+    if (watchIdRef.current != null) {
+      window.clearInterval(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    geolocationRef.current = null;
+    firstFixRef.current = false;
+    if (amapMapRef.current) {
+      amapMapRef.current.destroy();
+      amapMapRef.current = null;
     }
     userMarkerRef.current = null;
     accuracyCircleRef.current = null;
-    leafletHostRef.current = null;
   };
 
   const resetLiveMapView = () => {
-    const map = ensureLeafletMap();
+    const map = amapMapRef.current;
     if (!map) return;
-    map.setView(XJTLU_CENTER, LIVE_MAP_DEFAULT_ZOOM, { animate: false });
+    map.setZoomAndCenter(LIVE_MAP_DEFAULT_ZOOM, XJTLU_CENTER);
   };
 
-  const updateUserPosition = (lat: number, lng: number, accuracy: number) => {
-    const map = leafletMapRef.current;
+  const updateUserPosition = async (lat: number, lng: number, accuracy: number) => {
+    const map = amapMapRef.current ?? (await ensureAmapMap());
     if (!map) return;
 
+    const AMap = await loadAmap();
+    const position: [number, number] = [lng, lat];
     const acc = Math.max(Number(accuracy) || 0, 5);
+
     if (userMarkerRef.current && accuracyCircleRef.current) {
-      userMarkerRef.current.setLatLng([lat, lng]);
-      accuracyCircleRef.current.setLatLng([lat, lng]);
+      userMarkerRef.current.setCenter(position);
+      accuracyCircleRef.current.setCenter(position);
       accuracyCircleRef.current.setRadius(acc);
     } else {
-      userMarkerRef.current = L.circleMarker([lat, lng], {
+      userMarkerRef.current = new AMap.CircleMarker({
+        center: position,
         radius: 7,
-        color: "#17316f",
+        strokeColor: "#17316f",
         fillColor: "#5aa6ff",
         fillOpacity: 0.95,
-        weight: 2,
-      }).addTo(map);
-      accuracyCircleRef.current = L.circle([lat, lng], {
+        strokeWeight: 2,
+      });
+      userMarkerRef.current.setMap(map);
+
+      accuracyCircleRef.current = new AMap.Circle({
+        center: position,
         radius: acc,
-        color: "#5aa6ff",
+        strokeColor: "#5aa6ff",
         fillColor: "#5aa6ff",
         fillOpacity: 0.12,
-        weight: 1,
-      }).addTo(map);
+        strokeWeight: 1,
+      });
+      accuracyCircleRef.current.setMap(map);
     }
 
     if (!firstFixRef.current) {
-      map.setView([lat, lng], Math.max(map.getZoom(), 16));
+      map.setZoomAndCenter(Math.max(map.getZoom(), 16), position);
       firstFixRef.current = true;
     } else {
-      map.panTo([lat, lng], { animate: false });
+      map.panTo(position);
     }
     setLocationStatus(mapCopy.locatingWithAccuracy(Math.round(acc)));
   };
 
-  const startTracking = () => {
-    if (!navigator.geolocation) {
+  const pollLocation = () => {
+    const geolocation = geolocationRef.current;
+    if (!geolocation) return;
+
+    geolocation.getCurrentPosition((status, result) => {
+      if (status === "complete") {
+        void updateUserPosition(result.position.lat, result.position.lng, result.accuracy);
+        return;
+      }
+      setLocationStatus(result.message ?? mapCopy.locationUnknown);
+    });
+  };
+
+  const startTracking = async () => {
+    try {
+      const AMap = await loadAmap();
+      const map = await ensureAmapMap();
+      if (!map) return;
+
+      if (watchIdRef.current != null) window.clearInterval(watchIdRef.current);
+      firstFixRef.current = false;
+
+      geolocationRef.current = new AMap.Geolocation({
+        enableHighAccuracy: true,
+        timeout: 25000,
+        maximumAge: 0,
+        convert: true,
+      });
+
+      pollLocation();
+      watchIdRef.current = window.setInterval(pollLocation, LOCATION_POLL_MS);
+      setLocationStatus(mapCopy.locating);
+    } catch {
       setLocationStatus(mapCopy.browserUnsupported);
-      return;
     }
-
-    const map = ensureLeafletMap();
-    if (!map) return;
-    if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
-    firstFixRef.current = false;
-
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        updateUserPosition(latitude, longitude, accuracy);
-      },
-      (err) => {
-        const status =
-          err.code === 1
-            ? mapCopy.permissionDenied
-            : err.code === 2
-              ? mapCopy.signalUnavailable
-              : err.code === 3
-                ? mapCopy.timeout
-                : mapCopy.locationUnknown;
-        setLocationStatus(status);
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 },
-    );
-    setLocationStatus(mapCopy.locating);
   };
 
   useEffect(() => {
     if (mapTab === "live") {
-      const map = ensureLeafletMap();
-      if (map) {
-        resetLiveMapView();
-        window.setTimeout(() => map.invalidateSize(), 120);
-      }
+      void (async () => {
+        const map = await ensureAmapMap();
+        if (map) {
+          resetLiveMapView();
+          window.setTimeout(() => map.resize(), 120);
+        }
+      })();
     } else {
       stopTracking(mapCopy.switchedBack);
-      destroyLeafletMap();
+      destroyAmapMap();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapTab, mapCopy.switchedBack]);
@@ -821,7 +827,7 @@ export function PicturesAndMapScreen() {
   useEffect(() => {
     return () => {
       stopTracking(mapCopy.stopLocating);
-      destroyLeafletMap();
+      destroyAmapMap();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -848,16 +854,12 @@ export function PicturesAndMapScreen() {
       {/* Header */}
       <div style={{ backgroundColor: C.sky, borderBottom: `3px solid ${C.navy}`, padding: "8px 20px 22px", flexShrink: 0, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, #ffffff22 1.2px, transparent 1.2px)", backgroundSize: "14px 14px" }} />
-        <div style={{ position: "absolute", bottom: "8px", right: "20px" }}><Burst size={44} color={C.yellow} text="🗺️" /></div>
-
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                 <span style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>UniBuddy</span>
               </div>
-              <h1 style={{ fontSize: "26px", fontWeight: 900, color: C.white, textShadow: `2px 2px 0 ${C.navy}` }}>🗺️ {t("map_title")}</h1>
-              <p style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: "2px" }}>{t("map_subtitle")}</p>
             </div>
             <button
               type="button"
@@ -1266,7 +1268,7 @@ export function PicturesAndMapScreen() {
           ) : (
             <div key="live-map-tab">
               <div
-                ref={leafletHostRef}
+                ref={amapHostRef}
                 style={{
                   width: "100%",
                   height: "clamp(220px, 34vh, 320px)",
@@ -1408,76 +1410,10 @@ export function PicturesAndMapScreen() {
         <ComicCard style={{ padding: "14px", marginBottom: "6px", backgroundColor: C.cream }}>
           <button
             type="button"
-            onClick={openCamera}
+            onClick={openBadgeCollection}
             style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              gap: "14px",
-              backgroundColor: C.yellow,
-              border: `2.5px solid ${C.navy}`,
-              borderRadius: "16px",
-              boxShadow: `4px 4px 0 ${C.navy}`,
-              padding: "16px",
-              marginBottom: "14px",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "translate(2px,2px)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "translate(0,0)")}
-          >
-            <div style={{ width: "52px", height: "52px", borderRadius: "50%", backgroundColor: C.white, border: `2.5px solid ${C.navy}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0, boxShadow: `2px 2px 0 ${C.navy}` }}>
-              📱
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: "16px", fontWeight: 900, color: C.navy, marginBottom: "3px" }}>{t("map_tap_stamp")}</p>
-              <p style={{ fontSize: "11px", fontWeight: 700, color: "#4B6898", lineHeight: 1.45 }}>{t("map_tap_stamp_desc")}</p>
-            </div>
-          </button>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 800, color: C.navy, display: "flex", alignItems: "center", gap: "6px" }}>
-              <IconBadge size={16} filled /> {t("home_stamp_label")}
-            </span>
-            <span style={{ fontSize: "13px", fontWeight: 900, color: C.royal }}>{badgeCheckedCount} / {BADGE_DEFS.length}</span>
-          </div>
-          <div style={{ width: "100%", height: "12px", backgroundColor: C.ice, border: `2px solid ${C.navy}`, borderRadius: "20px", overflow: "hidden", marginBottom: "14px" }}>
-            <div style={{ height: "100%", backgroundColor: C.royal, width: `${(badgeCheckedCount / BADGE_DEFS.length) * 100}%`, borderRight: badgeCheckedCount < BADGE_DEFS.length ? `2px solid ${C.navy}` : "none" }} />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-            {badges.map((badge) => (
-              <div key={badge.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                <div style={{
-                  width: "100%", aspectRatio: "1", position: "relative",
-                  border: badge.checked ? `2.5px solid ${C.royal}` : `2.5px dashed ${C.pale}`,
-                  borderRadius: "14px",
-                  boxShadow: badge.checked ? `2px 2px 0 ${C.royal}` : "none",
-                  opacity: badge.checked ? 1 : 0.35,
-                  overflow: "hidden",
-                  backgroundColor: badge.checked ? C.white : "#F8FAFC",
-                }}>
-                  <img
-                    src={`${import.meta.env.BASE_URL}${badge.imagePath}`}
-                    alt={`badge-${badge.id}`}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
-                  {badge.checked && (
-                    <div style={{ position: "absolute", bottom: "3px", right: "3px", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: C.royal, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <IconCheck size={9} color="white" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={openCamera}
-            style={{
-              width: "100%", marginTop: "14px", height: "44px",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              width: "100%", height: "44px",
+              display: "flex", alignItems: "center", justifyContent: "center",
               backgroundColor: C.royal, border: `2.5px solid ${C.navy}`,
               borderRadius: "14px", boxShadow: `3px 3px 0 ${C.navy}`,
               color: C.white, fontSize: "14px", fontWeight: 900, cursor: "pointer",
@@ -1485,7 +1421,7 @@ export function PicturesAndMapScreen() {
             onMouseDown={(e) => (e.currentTarget.style.transform = "translate(2px,2px)")}
             onMouseUp={(e) => (e.currentTarget.style.transform = "translate(0,0)")}
           >
-            📸 {t("map_tap_stamp_btn")}
+            {t("map_tap_stamp_btn")}
           </button>
         </ComicCard>
       </div>

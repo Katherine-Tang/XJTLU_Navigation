@@ -86,6 +86,9 @@ interface CameraCtx {
   showCamera: boolean;
   openCamera: () => void;
   closeCamera: () => void;
+  showBadgeCollection: boolean;
+  openBadgeCollection: () => void;
+  closeBadgeCollection: () => void;
   addPhotos: (files: File[]) => void;
   removePhoto: (photoId: number) => void;
   unlockedBadgeIds: number[];
@@ -101,6 +104,9 @@ const CameraContext = createContext<CameraCtx>({
   showCamera: false,
   openCamera: () => {},
   closeCamera: () => {},
+  showBadgeCollection: false,
+  openBadgeCollection: () => {},
+  closeBadgeCollection: () => {},
   addPhotos: () => {},
   removePhoto: () => {},
   unlockedBadgeIds: PRE_UNLOCKED_BADGE_IDS,
@@ -114,6 +120,7 @@ const CameraContext = createContext<CameraCtx>({
 export function CameraProvider({ children }: { children: ReactNode }) {
   const [photos, setPhotos] = useState<CapturedPhoto[]>(() => getInitialCameraOnce().photos);
   const [showCamera, setShowCamera] = useState(false);
+  const [showBadgeCollection, setShowBadgeCollection] = useState(false);
   const [unlockedBadgeIds, setUnlockedBadgeIds] = useState<number[]>(() => getInitialCameraOnce().unlockedBadgeIds);
   const [lastUnlockedBadgeId, setLastUnlockedBadgeId] = useState<number | null>(null);
   const [ocrScanning, setOcrScanning] = useState(false);
@@ -131,6 +138,8 @@ export function CameraProvider({ children }: { children: ReactNode }) {
 
   const openCamera = useCallback(() => setShowCamera(true), []);
   const closeCamera = useCallback(() => setShowCamera(false), []);
+  const openBadgeCollection = useCallback(() => setShowBadgeCollection(true), []);
+  const closeBadgeCollection = useCallback(() => setShowBadgeCollection(false), []);
   const dismissUnlockEvent = useCallback(() => setLastUnlockEvent(null), []);
   const removePhoto = useCallback((photoId: number) => {
     setPhotos((prev) => prev.filter((photo) => photo.id !== photoId));
@@ -194,6 +203,9 @@ export function CameraProvider({ children }: { children: ReactNode }) {
         showCamera,
         openCamera,
         closeCamera,
+        showBadgeCollection,
+        openBadgeCollection,
+        closeBadgeCollection,
         addPhotos,
         removePhoto,
         unlockedBadgeIds,

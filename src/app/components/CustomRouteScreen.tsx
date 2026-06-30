@@ -58,6 +58,7 @@ const customDiningSpots = (() => {
     { id: "south_hope", labelKey: "custom_d_south_hope", fullName: "South Hope", x: ir.x - 1, y: ir.y, color: "#e57373" },
     { id: "west_hall", labelKey: "custom_d_west_hall", fullName: "West Hall", x: ir.x - 3, y: ir.y, color: "#ff8a65" },
     { id: "east_hall", labelKey: "custom_d_east_hall", fullName: "East Hall", x: ia.x + 0.4, y: ia.y - 0.3, color: "#ff8a65" },
+    { id: "tongfa_restaurant", labelKey: "custom_d_tongfa_restaurant", fullName: "TongFa Restaurant", x: ir.x - 2, y: ir.y + 1.2, color: "#ff7043" },
   ] as const;
 })();
 
@@ -69,7 +70,7 @@ function emojiForPin(id: string): string {
   if (id === "as") return "🎬";
   if (id === "ir") return "🔬";
   if (id === "db") return "🏠";
-  if (id === "north_hope" || id === "south_hope" || id === "west_hall" || id === "east_hall") return "🍜";
+  if (id === "north_hope" || id === "south_hope" || id === "west_hall" || id === "east_hall" || id === "tongfa_restaurant") return "🍜";
   return "🏢";
 }
 
