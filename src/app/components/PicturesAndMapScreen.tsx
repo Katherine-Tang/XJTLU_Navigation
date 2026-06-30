@@ -5,7 +5,7 @@ import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
-import { PhoneShell, StatusBar, ComicCard, Burst } from "./PhoneShell";
+import { PhoneShell, StatusBar, ComicCard } from "./PhoneShell";
 import { IconNavigation, IconChevronRight as IconArrow, IconRoute, IconBadge, IconCheck } from "./ComicIcons";
 import { useLanguage } from "../context/LanguageContext";
 import { useCamera } from "../context/CameraContext";
@@ -848,16 +848,12 @@ export function PicturesAndMapScreen() {
       {/* Header */}
       <div style={{ backgroundColor: C.sky, borderBottom: `3px solid ${C.navy}`, padding: "8px 20px 22px", flexShrink: 0, position: "relative", overflow: "hidden" }}>
         <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, #ffffff22 1.2px, transparent 1.2px)", backgroundSize: "14px 14px" }} />
-        <div style={{ position: "absolute", bottom: "8px", right: "20px" }}><Burst size={44} color={C.yellow} text="🗺️" /></div>
-
         <div style={{ position: "relative", zIndex: 1 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
             <div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
                 <span style={{ fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.8)" }}>UniBuddy</span>
               </div>
-              <h1 style={{ fontSize: "26px", fontWeight: 900, color: C.white, textShadow: `2px 2px 0 ${C.navy}` }}>🗺️ {t("map_title")}</h1>
-              <p style={{ fontSize: "12px", fontWeight: 600, color: "rgba(255,255,255,0.85)", marginTop: "2px" }}>{t("map_subtitle")}</p>
             </div>
             <button
               type="button"
