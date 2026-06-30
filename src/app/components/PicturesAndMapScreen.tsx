@@ -1,11 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router";
-import * as L from "leaflet";
-import "leaflet/dist/leaflet.css";
-import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
-import markerIcon from "leaflet/dist/images/marker-icon.png";
-import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { PhoneShell, StatusBar, ComicCard } from "./PhoneShell";
+import { loadAmap } from "../services/amap";
 import { IconNavigation, IconChevronRight as IconArrow, IconRoute } from "./ComicIcons";
 import { useLanguage } from "../context/LanguageContext";
 import { useCamera } from "../context/CameraContext";
@@ -20,12 +16,6 @@ const C = {
   ice: "#DCF0FF", cream: "#FFFBF0", yellow: "#FFD93D", coral: "#FF6B6B",
   mint: "#5EEAA8", purple: "#7B5CF5", white: "#FFFFFF",
 };
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: markerIcon2x,
-  iconUrl: markerIcon,
-  shadowUrl: markerShadow,
-});
 
 type GuidedTourPoint = { id: string; label: string; x?: number; y?: number };
 
@@ -481,10 +471,11 @@ export function PicturesAndMapScreen() {
   });
 
   const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
-  const leafletHostRef = useRef<HTMLDivElement | null>(null);
-  const leafletMapRef = useRef<L.Map | null>(null);
-  const userMarkerRef = useRef<L.CircleMarker | null>(null);
-  const accuracyCircleRef = useRef<L.Circle | null>(null);
+  const amapHostRef = useRef<HTMLDivElement | null>(null);
+  const amapMapRef = useRef<AMap.Map | null>(null);
+  const userMarkerRef = useRef<AMap.CircleMarker | null>(null);
+  const accuracyCircleRef = useRef<AMap.Circle | null>(null);
+  const geolocationRef = useRef<AMap.Geolocation | null>(null);
   const watchIdRef = useRef<number | null>(null);
   const firstFixRef = useRef(false);
   const mapSectionRef = useRef<HTMLDivElement>(null);
@@ -527,7 +518,7 @@ export function PicturesAndMapScreen() {
           guidedSteps: "站点顺序",
           guidedHint: "已按所选路线在地图上连线展示",
           guidedNotice: "导览路线已生成，请通过校园地图查看。",
-          liveTip: "地图数据来自 OpenStreetMap，定位需浏览器授权且建议在 HTTPS 环境使用。",
+          liveTip: "地图数据来自高德地图，定位需浏览器授权且建议在 HTTPS 环境使用。",
         }
       : {
           clickHint: "Tap a map pin to view details",
@@ -558,7 +549,7 @@ export function PicturesAndMapScreen() {
           guidedSteps: "Stops",
           guidedHint: "Selected stops are connected on the map",
           guidedNotice: "The guided route is ready. Please view it on the campus map.",
-          liveTip: "Map data is provided by OpenStreetMap. Browser permission and HTTPS are recommended.",
+          liveTip: "Map data is provided by Amap (Gaode). Browser permission and HTTPS are recommended.",
         };
 
   useEffect(() => {
@@ -679,136 +670,156 @@ export function PicturesAndMapScreen() {
     };
   }, []);
 
-  const XJTLU_CENTER: [number, number] = [31.2718, 120.7415];
+  const XJTLU_CENTER: [number, number] = [120.7415, 31.2718];
   const LIVE_MAP_DEFAULT_ZOOM = 15;
   const LIVE_MAP_MAX_ZOOM = 18;
+  const LOCATION_POLL_MS = 3000;
 
   useEffect(() => {
     setLocationStatus(mapCopy.startLocating);
   }, [mapCopy.startLocating]);
 
-  const ensureLeafletMap = () => {
-    if (leafletMapRef.current) return leafletMapRef.current;
-    if (!leafletHostRef.current) return null;
+  const ensureAmapMap = async () => {
+    if (amapMapRef.current) return amapMapRef.current;
+    if (!amapHostRef.current) return null;
 
-    const map = L.map(leafletHostRef.current, {
-      scrollWheelZoom: false,
-      zoomControl: true,
-      minZoom: 13,
-      maxZoom: LIVE_MAP_MAX_ZOOM,
-    }).setView(XJTLU_CENTER, LIVE_MAP_DEFAULT_ZOOM);
-    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: LIVE_MAP_MAX_ZOOM,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    }).addTo(map);
+    const AMap = await loadAmap();
+    const map = new AMap.Map(amapHostRef.current, {
+      zoom: LIVE_MAP_DEFAULT_ZOOM,
+      center: XJTLU_CENTER,
+      viewMode: "2D",
+      zooms: [13, LIVE_MAP_MAX_ZOOM],
+      scrollWheel: false,
+    });
 
-    L.marker(XJTLU_CENTER).addTo(map).bindPopup("XJTLU");
-    leafletMapRef.current = map;
+    new AMap.Marker({ position: XJTLU_CENTER, title: "XJTLU" }).setMap(map);
+    amapMapRef.current = map;
     return map;
   };
 
   const stopTracking = (message = mapCopy.stopLocating) => {
-    if (watchIdRef.current != null && navigator.geolocation) {
-      navigator.geolocation.clearWatch(watchIdRef.current);
+    if (watchIdRef.current != null) {
+      window.clearInterval(watchIdRef.current);
       watchIdRef.current = null;
     }
+    geolocationRef.current = null;
     firstFixRef.current = false;
     setLocationStatus(message);
   };
 
-  const destroyLeafletMap = () => {
-    if (leafletMapRef.current) {
-      leafletMapRef.current.remove();
-      leafletMapRef.current = null;
+  const destroyAmapMap = () => {
+    if (watchIdRef.current != null) {
+      window.clearInterval(watchIdRef.current);
+      watchIdRef.current = null;
+    }
+    geolocationRef.current = null;
+    firstFixRef.current = false;
+    if (amapMapRef.current) {
+      amapMapRef.current.destroy();
+      amapMapRef.current = null;
     }
     userMarkerRef.current = null;
     accuracyCircleRef.current = null;
-    leafletHostRef.current = null;
   };
 
   const resetLiveMapView = () => {
-    const map = ensureLeafletMap();
+    const map = amapMapRef.current;
     if (!map) return;
-    map.setView(XJTLU_CENTER, LIVE_MAP_DEFAULT_ZOOM, { animate: false });
+    map.setZoomAndCenter(LIVE_MAP_DEFAULT_ZOOM, XJTLU_CENTER);
   };
 
-  const updateUserPosition = (lat: number, lng: number, accuracy: number) => {
-    const map = leafletMapRef.current;
+  const updateUserPosition = async (lat: number, lng: number, accuracy: number) => {
+    const map = amapMapRef.current ?? (await ensureAmapMap());
     if (!map) return;
 
+    const AMap = await loadAmap();
+    const position: [number, number] = [lng, lat];
     const acc = Math.max(Number(accuracy) || 0, 5);
+
     if (userMarkerRef.current && accuracyCircleRef.current) {
-      userMarkerRef.current.setLatLng([lat, lng]);
-      accuracyCircleRef.current.setLatLng([lat, lng]);
+      userMarkerRef.current.setCenter(position);
+      accuracyCircleRef.current.setCenter(position);
       accuracyCircleRef.current.setRadius(acc);
     } else {
-      userMarkerRef.current = L.circleMarker([lat, lng], {
+      userMarkerRef.current = new AMap.CircleMarker({
+        center: position,
         radius: 7,
-        color: "#17316f",
+        strokeColor: "#17316f",
         fillColor: "#5aa6ff",
         fillOpacity: 0.95,
-        weight: 2,
-      }).addTo(map);
-      accuracyCircleRef.current = L.circle([lat, lng], {
+        strokeWeight: 2,
+      });
+      userMarkerRef.current.setMap(map);
+
+      accuracyCircleRef.current = new AMap.Circle({
+        center: position,
         radius: acc,
-        color: "#5aa6ff",
+        strokeColor: "#5aa6ff",
         fillColor: "#5aa6ff",
         fillOpacity: 0.12,
-        weight: 1,
-      }).addTo(map);
+        strokeWeight: 1,
+      });
+      accuracyCircleRef.current.setMap(map);
     }
 
     if (!firstFixRef.current) {
-      map.setView([lat, lng], Math.max(map.getZoom(), 16));
+      map.setZoomAndCenter(Math.max(map.getZoom(), 16), position);
       firstFixRef.current = true;
     } else {
-      map.panTo([lat, lng], { animate: false });
+      map.panTo(position);
     }
     setLocationStatus(mapCopy.locatingWithAccuracy(Math.round(acc)));
   };
 
-  const startTracking = () => {
-    if (!navigator.geolocation) {
+  const pollLocation = () => {
+    const geolocation = geolocationRef.current;
+    if (!geolocation) return;
+
+    geolocation.getCurrentPosition((status, result) => {
+      if (status === "complete") {
+        void updateUserPosition(result.position.lat, result.position.lng, result.accuracy);
+        return;
+      }
+      setLocationStatus(result.message ?? mapCopy.locationUnknown);
+    });
+  };
+
+  const startTracking = async () => {
+    try {
+      const AMap = await loadAmap();
+      const map = await ensureAmapMap();
+      if (!map) return;
+
+      if (watchIdRef.current != null) window.clearInterval(watchIdRef.current);
+      firstFixRef.current = false;
+
+      geolocationRef.current = new AMap.Geolocation({
+        enableHighAccuracy: true,
+        timeout: 25000,
+        maximumAge: 0,
+        convert: true,
+      });
+
+      pollLocation();
+      watchIdRef.current = window.setInterval(pollLocation, LOCATION_POLL_MS);
+      setLocationStatus(mapCopy.locating);
+    } catch {
       setLocationStatus(mapCopy.browserUnsupported);
-      return;
     }
-
-    const map = ensureLeafletMap();
-    if (!map) return;
-    if (watchIdRef.current != null) navigator.geolocation.clearWatch(watchIdRef.current);
-    firstFixRef.current = false;
-
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => {
-        const { latitude, longitude, accuracy } = pos.coords;
-        updateUserPosition(latitude, longitude, accuracy);
-      },
-      (err) => {
-        const status =
-          err.code === 1
-            ? mapCopy.permissionDenied
-            : err.code === 2
-              ? mapCopy.signalUnavailable
-              : err.code === 3
-                ? mapCopy.timeout
-                : mapCopy.locationUnknown;
-        setLocationStatus(status);
-      },
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 25000 },
-    );
-    setLocationStatus(mapCopy.locating);
   };
 
   useEffect(() => {
     if (mapTab === "live") {
-      const map = ensureLeafletMap();
-      if (map) {
-        resetLiveMapView();
-        window.setTimeout(() => map.invalidateSize(), 120);
-      }
+      void (async () => {
+        const map = await ensureAmapMap();
+        if (map) {
+          resetLiveMapView();
+          window.setTimeout(() => map.resize(), 120);
+        }
+      })();
     } else {
       stopTracking(mapCopy.switchedBack);
-      destroyLeafletMap();
+      destroyAmapMap();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapTab, mapCopy.switchedBack]);
@@ -816,7 +827,7 @@ export function PicturesAndMapScreen() {
   useEffect(() => {
     return () => {
       stopTracking(mapCopy.stopLocating);
-      destroyLeafletMap();
+      destroyAmapMap();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1257,7 +1268,7 @@ export function PicturesAndMapScreen() {
           ) : (
             <div key="live-map-tab">
               <div
-                ref={leafletHostRef}
+                ref={amapHostRef}
                 style={{
                   width: "100%",
                   height: "clamp(220px, 34vh, 320px)",
