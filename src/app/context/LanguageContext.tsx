@@ -125,7 +125,7 @@ const zh: Texts = {
   custom_d_north_hope: "北宏愿",
   custom_d_west_hall: "西厅",
   custom_d_east_hall: "东厅",
-  custom_d_tongfa_hall: "同发食堂",
+  custom_d_tongfa_restaurant: "同发餐厅",
   // Profile
   profile_subtitle: "XJTLU · 大一新生",
   profile_stamps: "已集章", profile_photos: "已拍照", profile_favs: "收藏路线",
@@ -178,7 +178,7 @@ const zh: Texts = {
   stop_rec_ibss: "IBSS商学院",
   // Mystery route stops (new)
   stop_food_south_north_hongyuan: "南北宏愿",
-  stop_food_tongfa: "同发食堂",
+  stop_food_tongfa: "同发餐厅",
   stop_food_mersey_cafe: "图书馆默西咖啡",
   stop_food_west_hall: "西厅",
   stop_food_east_hall: "东厅",
@@ -420,7 +420,7 @@ const en: Texts = {
   custom_d_north_hope: "North Hope",
   custom_d_west_hall: "West Hall",
   custom_d_east_hall: "East Hall",
-  custom_d_tongfa_hall: "TongFa Hall",
+  custom_d_tongfa_restaurant: "TongFa Restaurant",
   custom_title: "Custom Route", custom_subtitle: "Choose buildings · Smart route planning",
   custom_selected: "Selected", custom_min2: "at least 2", custom_ready: "Ready to generate",
   custom_all: "All",
@@ -478,7 +478,7 @@ const en: Texts = {
   stop_rec_ibss: "IBSS Business School",
   // Mystery route stops (new)
   stop_food_south_north_hongyuan: "South/North Hope",
-  stop_food_tongfa: "TongFa Hall",
+  stop_food_tongfa: "TongFa Restaurant",
   stop_food_mersey_cafe: "Mersey Cafe (Library)",
   stop_food_west_hall: "West Hall",
   stop_food_east_hall: "East Hall",
