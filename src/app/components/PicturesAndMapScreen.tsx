@@ -6,12 +6,11 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { PhoneShell, StatusBar, ComicCard } from "./PhoneShell";
-import { IconNavigation, IconChevronRight as IconArrow, IconRoute, IconBadge, IconCheck } from "./ComicIcons";
+import { IconNavigation, IconChevronRight as IconArrow, IconRoute } from "./ComicIcons";
 import { useLanguage } from "../context/LanguageContext";
 import { useCamera } from "../context/CameraContext";
 import { campusMapHotspots, type CampusMapHotspotId } from "../data/campusMapHotspots";
 import { campusWalkAdjacency, shortestCampusWalkPath } from "../data/campusWalkGraph";
-import { BADGE_DEFS } from "../data/stamps";
 import { ImageZoomLightbox } from "./ImageZoomLightbox";
 
 const MASCOT_VOICE_STORAGE_KEY = "unibuddy.mascot.voiceUri";
@@ -470,7 +469,7 @@ export function PicturesAndMapScreen() {
   const navigate = useNavigate();
   const location = useLocation();
   const { lang, toggle, t } = useLanguage();
-  const { openCamera, badgeCheckedCount, unlockedBadgeIds } = useCamera();
+  const { openBadgeCollection } = useCamera();
   const [mapTab, setMapTab] = useState<MapTabKey>("map");
   const [activeHotspotId, setActiveHotspotId] = useState("cb");
   const [locationStatus, setLocationStatus] = useState("");
@@ -563,20 +562,16 @@ export function PicturesAndMapScreen() {
         };
 
   useEffect(() => {
-    const scrollToStamps = () => {
-      stampSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    const openStamps = () => {
+      openBadgeCollection();
     };
-    window.addEventListener("unibuddy-scroll-stamps", scrollToStamps);
-    return () => window.removeEventListener("unibuddy-scroll-stamps", scrollToStamps);
-  }, []);
+    window.addEventListener("unibuddy-scroll-stamps", openStamps);
+    return () => window.removeEventListener("unibuddy-scroll-stamps", openStamps);
+  }, [openBadgeCollection]);
 
   const activeLocation =
     (lang === "zh" ? campusLocationInfoZh : campusLocationInfo)[activeHotspotId] ??
     campusLocationInfo[activeHotspotId];
-  const badges = BADGE_DEFS.map((badge) => ({
-    ...badge,
-    checked: unlockedBadgeIds.includes(badge.id),
-  }));
   const guidedPoints = guidedTour ? normalizeGuidedTourPoints(guidedTour.points) : [];
   const guidedWalkAdj = campusWalkAdjacency();
   const guidedPolyline = (() => {
@@ -1404,76 +1399,10 @@ export function PicturesAndMapScreen() {
         <ComicCard style={{ padding: "14px", marginBottom: "6px", backgroundColor: C.cream }}>
           <button
             type="button"
-            onClick={openCamera}
+            onClick={openBadgeCollection}
             style={{
-              width: "100%",
-              display: "flex",
-              alignItems: "center",
-              gap: "14px",
-              backgroundColor: C.yellow,
-              border: `2.5px solid ${C.navy}`,
-              borderRadius: "16px",
-              boxShadow: `4px 4px 0 ${C.navy}`,
-              padding: "16px",
-              marginBottom: "14px",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "translate(2px,2px)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "translate(0,0)")}
-          >
-            <div style={{ width: "52px", height: "52px", borderRadius: "50%", backgroundColor: C.white, border: `2.5px solid ${C.navy}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "26px", flexShrink: 0, boxShadow: `2px 2px 0 ${C.navy}` }}>
-              📱
-            </div>
-            <div style={{ flex: 1 }}>
-              <p style={{ fontSize: "16px", fontWeight: 900, color: C.navy, marginBottom: "3px" }}>{t("map_tap_stamp")}</p>
-              <p style={{ fontSize: "11px", fontWeight: 700, color: "#4B6898", lineHeight: 1.45 }}>{t("map_tap_stamp_desc")}</p>
-            </div>
-          </button>
-
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-            <span style={{ fontSize: "13px", fontWeight: 800, color: C.navy, display: "flex", alignItems: "center", gap: "6px" }}>
-              <IconBadge size={16} filled /> {t("home_stamp_label")}
-            </span>
-            <span style={{ fontSize: "13px", fontWeight: 900, color: C.royal }}>{badgeCheckedCount} / {BADGE_DEFS.length}</span>
-          </div>
-          <div style={{ width: "100%", height: "12px", backgroundColor: C.ice, border: `2px solid ${C.navy}`, borderRadius: "20px", overflow: "hidden", marginBottom: "14px" }}>
-            <div style={{ height: "100%", backgroundColor: C.royal, width: `${(badgeCheckedCount / BADGE_DEFS.length) * 100}%`, borderRight: badgeCheckedCount < BADGE_DEFS.length ? `2px solid ${C.navy}` : "none" }} />
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
-            {badges.map((badge) => (
-              <div key={badge.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                <div style={{
-                  width: "100%", aspectRatio: "1", position: "relative",
-                  border: badge.checked ? `2.5px solid ${C.royal}` : `2.5px dashed ${C.pale}`,
-                  borderRadius: "14px",
-                  boxShadow: badge.checked ? `2px 2px 0 ${C.royal}` : "none",
-                  opacity: badge.checked ? 1 : 0.35,
-                  overflow: "hidden",
-                  backgroundColor: badge.checked ? C.white : "#F8FAFC",
-                }}>
-                  <img
-                    src={`${import.meta.env.BASE_URL}${badge.imagePath}`}
-                    alt={`badge-${badge.id}`}
-                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                  />
-                  {badge.checked && (
-                    <div style={{ position: "absolute", bottom: "3px", right: "3px", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: C.royal, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <IconCheck size={9} color="white" />
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            type="button"
-            onClick={openCamera}
-            style={{
-              width: "100%", marginTop: "14px", height: "44px",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+              width: "100%", height: "44px",
+              display: "flex", alignItems: "center", justifyContent: "center",
               backgroundColor: C.royal, border: `2.5px solid ${C.navy}`,
               borderRadius: "14px", boxShadow: `3px 3px 0 ${C.navy}`,
               color: C.white, fontSize: "14px", fontWeight: 900, cursor: "pointer",
@@ -1481,7 +1410,7 @@ export function PicturesAndMapScreen() {
             onMouseDown={(e) => (e.currentTarget.style.transform = "translate(2px,2px)")}
             onMouseUp={(e) => (e.currentTarget.style.transform = "translate(0,0)")}
           >
-            📸 {t("map_tap_stamp_btn")}
+            {t("map_tap_stamp_btn")}
           </button>
         </ComicCard>
       </div>
