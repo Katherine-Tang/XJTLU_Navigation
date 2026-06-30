@@ -1,6 +1,8 @@
 import React, { type ReactNode, useRef, useState, useEffect } from "react";
 import { useCamera } from "../context/CameraContext";
 import { useLanguage } from "../context/LanguageContext";
+import { BADGE_DEFS } from "../data/stamps";
+import { IconBadge, IconCheck } from "./ComicIcons";
 
 const C = {
   navy: "#0E1B4D", royal: "#2350D8", sky: "#4B9EF7", pale: "#A8D4FF",
@@ -41,6 +43,7 @@ export function PhoneShell({
         {children}
         {/* ── Global Camera Overlay ── */}
         <CameraOverlay />
+        <BadgeCollectionOverlay />
       </div>
     </div>
   );
@@ -48,7 +51,7 @@ export function PhoneShell({
 
 /* ── Camera overlay rendered inside every PhoneShell ── */
 function CameraOverlay() {
-  const { showCamera, closeCamera, photos, addPhotos, removePhoto, lastUnlockEvent, dismissUnlockEvent, ocrScanning } = useCamera();
+  const { showCamera, closeCamera, openBadgeCollection, photos, addPhotos, removePhoto, lastUnlockEvent, dismissUnlockEvent, ocrScanning } = useCamera();
   const { t } = useLanguage();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const albumInputRef = useRef<HTMLInputElement>(null);
@@ -57,7 +60,7 @@ function CameraOverlay() {
 
   const goToBadges = () => {
     closeCamera();
-    window.dispatchEvent(new CustomEvent("unibuddy-scroll-stamps"));
+    openBadgeCollection();
   };
 
   useEffect(() => {
@@ -296,6 +299,81 @@ function CameraOverlay() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ── Badge collection overlay ── */
+function BadgeCollectionOverlay() {
+  const { showBadgeCollection, closeBadgeCollection, badgeCheckedCount, unlockedBadgeIds } = useCamera();
+  const { t } = useLanguage();
+
+  if (!showBadgeCollection) return null;
+
+  const badges = BADGE_DEFS.map((badge) => ({
+    ...badge,
+    checked: unlockedBadgeIds.includes(badge.id),
+  }));
+
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 100, backgroundColor: C.cream, display: "flex", flexDirection: "column" }}>
+      <div style={{ backgroundColor: C.royal, borderBottom: `3px solid ${C.navy}`, padding: "10px 16px 16px", flexShrink: 0, position: "relative", overflow: "hidden" }}>
+        <div style={{ position: "absolute", inset: 0, backgroundImage: "radial-gradient(circle, #ffffff18 1.2px, transparent 1.2px)", backgroundSize: "14px 14px" }} />
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: "12px" }}>
+          <button
+            type="button"
+            onClick={closeBadgeCollection}
+            style={{ width: "36px", height: "36px", backgroundColor: "rgba(255,255,255,0.2)", border: `2px solid rgba(255,255,255,0.4)`, borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", flexShrink: 0 }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round">
+              <path d="M15 6L9 12L15 18" />
+            </svg>
+          </button>
+          <div>
+            <p style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.7)" }}>{t("home_stamp_section")}</p>
+            <p style={{ fontSize: "20px", fontWeight: 900, color: C.white, textShadow: `1px 1px 0 ${C.navy}` }}>{t("home_stamp_label")}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4" style={{ paddingBottom: "28px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+          <span style={{ fontSize: "13px", fontWeight: 800, color: C.navy, display: "flex", alignItems: "center", gap: "6px" }}>
+            <IconBadge size={16} filled /> {t("home_stamp_label")}
+          </span>
+          <span style={{ fontSize: "13px", fontWeight: 900, color: C.royal }}>{badgeCheckedCount} / {BADGE_DEFS.length}</span>
+        </div>
+        <div style={{ width: "100%", height: "12px", backgroundColor: C.ice, border: `2px solid ${C.navy}`, borderRadius: "20px", overflow: "hidden", marginBottom: "16px" }}>
+          <div style={{ height: "100%", backgroundColor: C.royal, width: `${(badgeCheckedCount / BADGE_DEFS.length) * 100}%`, transition: "width 0.4s ease", borderRight: badgeCheckedCount < BADGE_DEFS.length ? `2px solid ${C.navy}` : "none" }} />
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
+          {badges.map((badge) => (
+            <div key={badge.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+              <div style={{
+                width: "100%", aspectRatio: "1", position: "relative",
+                border: badge.checked ? `2.5px solid ${C.royal}` : `2.5px dashed ${C.pale}`,
+                borderRadius: badge.id <= 8 ? "50%" : "14px",
+                boxShadow: badge.checked ? `2px 2px 0 ${C.royal}` : "none",
+                opacity: badge.checked ? 1 : 0.35,
+                overflow: "hidden",
+                backgroundColor: badge.checked ? C.white : "#F8FAFC",
+              }}>
+                <img
+                  src={`${import.meta.env.BASE_URL}${badge.imagePath}`}
+                  alt={`badge-${badge.id}`}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+                {badge.checked && (
+                  <div style={{ position: "absolute", bottom: "3px", right: "3px", width: "16px", height: "16px", borderRadius: "50%", backgroundColor: C.royal, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <IconCheck size={9} color="white" />
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
