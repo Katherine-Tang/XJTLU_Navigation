@@ -351,7 +351,7 @@ const campusLocationInfoZh: Record<string, CampusLocationInfo> = {
     title: "公共楼",
     subtitle: "公共楼",
     desc: "成长顾问（DA）办公室所在地。这栋楼东侧入口处有一家便利店，南侧有一家食堂。",
-    story: "：有众多小教室，机房，DA办公室也在这里；慧湖药学院也“暂住”在这里",
+    story: "有众多小教室，机房，DA办公室也在这里；慧湖药学院也“暂住”在这里",
     tags: ["公共", "活动"],
     bestFor: "药学院学生",
   },
