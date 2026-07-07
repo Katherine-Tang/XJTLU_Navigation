@@ -623,14 +623,14 @@ interface LangContextValue {
 }
 
 const LangContext = createContext<LangContextValue>({
-  lang: "en",
+  lang: "zh",
   toggle: () => {},
   t: (k) => k,
   tPair: (k) => ({ zh: zh[k] ?? k, en: en[k] ?? k }),
 });
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>("en");
+  const [lang, setLang] = useState<Lang>("zh");
   const toggle = () => setLang((l) => (l === "zh" ? "en" : "zh"));
   const normalizeZhText = (text: string) => text.replace(/科技楼/g, "理科楼");
   const t = (key: string, vars?: Record<string, string | number>) => {
