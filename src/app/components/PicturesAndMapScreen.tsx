@@ -424,7 +424,7 @@ const campusLocationInfoZh: Record<string, CampusLocationInfo> = {
     subtitle: "新兴交叉科学楼",
     desc: "强调跨学科协作与创新探索的教学科研空间。户外科研与教学基地就位于ES楼西南侧，孕育着丰富的生态多样性，是师生们观察自然、探索科学的绝佳场所。",
     story: "BS的南边，也是校园最南边，G层有大阶梯教室，楼上有小阶梯教室和普通教室。",
-    tags: ["交叉学科""],
+    tags: ["交叉学科"],
     bestFor: "环科和工业设计学生",
   },
   db: {
